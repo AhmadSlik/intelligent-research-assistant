@@ -295,17 +295,17 @@ intelligent-research-assistant/
 
 **17-year-old entrepreneur · AI builder · Full-stack developer**
 
-Ahmad started building AI products at 16, teaching himself Python, FastAPI, and modern LLM tooling from scratch. This project — built over 18 days of focused daily sessions — is his first deployed multi-agent system, proving that autonomous AI pipelines can automate complex knowledge workflows end-to-end.
+I started building AI products at 16, teaching myself Python, FastAPI, and modern LLM tooling from scratch. This project — built over 18 days of focused daily sessions — is my first deployed multi-agent system, proving that autonomous AI pipelines can automate complex knowledge workflows end-to-end.
 
 <div dir="rtl" lang="ar">
 
-أحمد سليك — مطوّر برمجيات ورائد أعمال عمره 17 عامًا. بدأ بناء منتجات الذكاء الاصطناعي وهو في السادسة عشرة، وتعلّم Python وFastAPI وأدوات نماذج اللغة الحديثة بشكل ذاتي. هذا المشروع — الذي بُني خلال 18 يومًا من الجلسات اليومية المركّزة — هو أول نظام متعدد الوكلاء ينشره، ويُظهر كيف يمكن لخطوط أنابيب الذكاء الاصطناعي المستقلة أن تؤتمت سير عمل المعرفة المعقدة من البداية إلى النهاية.
+أحمد سليق — مطوّر برمجيات ورائد أعمال عمره 17 عامًا. بدأتُ بناء منتجات الذكاء الاصطناعي وأنا في السادسة عشرة، وتعلّمتُ Python وFastAPI وأدوات نماذج اللغة الحديثة بشكل ذاتي. هذا المشروع — الذي بنيتُه خلال 18 يومًا — هو أول نظام متعدد الوكلاء أنشره.
 
 </div>
 
 <br>
 
-📧 [accahmadff1@gmail.com](mailto:accahmadff1@gmail.com)
+📧 [ahmadslike1@gmail.com](mailto:ahmadslike1@gmail.com)
 
 [![GitHub](https://img.shields.io/badge/GitHub-Follow-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AhmadSlik)
 [![X / Twitter](https://img.shields.io/badge/X-Follow-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/Ahmad_slik)
@@ -317,8 +317,6 @@ Ahmad started building AI products at 16, teaching himself Python, FastAPI, and 
 
 <div align="center">
 
-**MIT License** · © 2025 Ahmad Slik
-
-*Built in 18 days. Deployed. Learning in public.*
+**MIT License** · © 2026 Ahmad Slik · بنيتُه في 18 يوم. نشرتُه. أتعلّم في العلن.
 
 </div>
