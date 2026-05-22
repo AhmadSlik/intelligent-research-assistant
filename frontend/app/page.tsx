@@ -28,7 +28,7 @@ export default function Home() {
     const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
     try {
-      const res = await fetch("http://localhost:8000/research/full", {
+      const res = await fetch("https://web-production-e01f8.up.railway.app/research/full", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: topic.trim() }),
