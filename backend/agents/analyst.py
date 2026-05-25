@@ -1,12 +1,7 @@
-import os
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from agents.reader import ReaderResult
-
-# --- تحميل المتغيرات البيئية من ملف .env ---
-load_dotenv()
+from core.model_router import ModelRouter
 
 
 # --- نماذج البيانات ---
@@ -27,14 +22,6 @@ class AnalystAgent:
     يقارن النقاط الرئيسية بين المصادر المختلفة،
     ويُرجع AnalystResult يحتوي على ملخص وقائمة التناقضات.
     """
-
-    def __init__(self):
-        # --- إعداد عميل OpenRouter ---
-        self._client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-        )
-        self._model = os.getenv("DEFAULT_MODEL", "google/gemini-2.0-flash-exp:free")
 
     def _build_prompt(self, reader_results: list[ReaderResult]) -> str:
         """
@@ -117,13 +104,12 @@ class AnalystAgent:
         prompt = self._build_prompt(reader_results)
 
         # --- إرسال الطلب إلى OpenRouter ---
-        response = await self._client.chat.completions.create(
-            model=self._model,
+        raw_text = await ModelRouter.chat(
+            agent_type="analyst",
             messages=[{"role": "user", "content": prompt}],
         )
 
         # --- تحليل الرد ---
-        raw_text = response.choices[0].message.content or ""
         summary, contradictions = self._parse_response(raw_text)
 
         return AnalystResult(summary=summary, contradictions=contradictions)

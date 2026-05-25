@@ -1,10 +1,18 @@
 # Intelligent Research Assistant - Backend Entry Point
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from rag.rag_api import router as rag_router
 from api.research import router as research_router
+from api.models import router as models_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 app = FastAPI(
     title="Intelligent Research Assistant",
@@ -21,6 +29,7 @@ app.add_middleware(
 
 app.include_router(rag_router)
 app.include_router(research_router)
+app.include_router(models_router)
 
 # شو هو BaseModel؟
 # تخيّل نموذج تعبئة — يحدد شو البيانات المطلوبة ونوعها

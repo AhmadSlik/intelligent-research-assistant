@@ -1,6 +1,8 @@
 import httpx
 from pydantic import BaseModel
 
+from core.model_router import ModelRouter
+
 
 # --- Pydantic Models ---
 
@@ -60,6 +62,8 @@ class ResearcherAgent:
     and uses httpx to attempt fetching each URL.
     Returns a ResearchResult with source titles, URLs, and summaries.
     """
+
+    model = ModelRouter.get_model("researcher")
 
     def _build_sources(self, topic: str) -> list[Source]:
         """Fill in the topic placeholders and return a list of Source objects."""

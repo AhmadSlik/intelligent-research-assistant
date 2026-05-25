@@ -1,13 +1,8 @@
-import os
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from agents.analyst import AnalystResult
 from agents.researcher import Source
-
-# --- تحميل المتغيرات البيئية من ملف .env ---
-load_dotenv()
+from core.model_router import ModelRouter
 
 
 # --- نماذج البيانات ---
@@ -27,14 +22,6 @@ class WriterAgent:
     يطلب من OpenRouter كتابة تقرير بحثي منظّم مع استشهادات [1] [2] ...،
     ويُرجع WriterResult يحتوي على نص التقرير كاملاً.
     """
-
-    def __init__(self):
-        # --- إعداد عميل OpenRouter ---
-        self._client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-        )
-        self._model = os.getenv("DEFAULT_MODEL", "google/gemini-2.0-flash-exp:free")
 
     def _build_prompt(
         self,
@@ -92,13 +79,9 @@ class WriterAgent:
         prompt = self._build_prompt(topic, analyst_result, sources)
 
         # --- إرسال الطلب إلى OpenRouter ---
-        response = await self._client.chat.completions.create(
-            model=self._model,
+        report = await ModelRouter.chat(
+            agent_type="writer",
             messages=[{"role": "user", "content": prompt}],
         )
-
-        # --- استلام التقرير ---
-        # نُرجع النص كما أرجعه النموذج بدون تعديل
-        report = response.choices[0].message.content or ""
 
         return WriterResult(report=report)

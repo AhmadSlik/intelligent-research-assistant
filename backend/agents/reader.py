@@ -1,11 +1,6 @@
-import os
-from dotenv import load_dotenv
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
-# --- تحميل المتغيرات البيئية من ملف .env ---
-# هذا يجعل OPENROUTER_API_KEY متاحاً في os.getenv()
-load_dotenv()
+from core.model_router import ModelRouter
 
 
 # --- نماذج البيانات ---
@@ -26,16 +21,6 @@ class ReaderAgent:
     ويستخرج 3 نقاط رئيسية من المحتوى.
     يُرجع ReaderResult يحتوي على النقاط والرابط.
     """
-
-    def __init__(self):
-        # --- إعداد عميل OpenRouter ---
-        # نستخدم مكتبة openai لأن OpenRouter متوافق مع نفس الواجهة البرمجية
-        self._client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-        )
-        # النموذج المستخدم — يمكن تغييره من ملف .env
-        self._model = os.getenv("DEFAULT_MODEL", "google/gemini-2.0-flash-exp:free")
 
     def _build_prompt(self, text: str) -> str:
         """
@@ -90,13 +75,12 @@ class ReaderAgent:
         prompt = self._build_prompt(text)
 
         # --- إرسال الطلب إلى OpenRouter ---
-        response = await self._client.chat.completions.create(
-            model=self._model,
+        raw_text = await ModelRouter.chat(
+            agent_type="reader",
             messages=[{"role": "user", "content": prompt}],
         )
 
         # --- تحليل الرد ---
-        raw_text = response.choices[0].message.content or ""
         key_points = self._parse_response(raw_text)
 
         return ReaderResult(key_points=key_points, source_url=url)

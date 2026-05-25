@@ -23,7 +23,9 @@
       "Bash(C:/Users/HP/Desktop/intelligent-research-assistant/venv/Scripts/black.exe:*)",
       "Bash(git *)",
       "Bash(xxd \"/home/ahmadmvp/سطح المكتب/intelligent-research-assistant/README.md\")",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(pkill -f \"uvicorn main:app\")",
+      "Bash(pkill -f \"uvicorn main:app --port 8004\")"
     ]
   }
 }
