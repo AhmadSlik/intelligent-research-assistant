@@ -48,8 +48,8 @@ async def full_research(request: FullResearchRequest):
         reader = ReaderAgent()
         reader_results: list[ReaderResult] = []
         for source in sources:
-            # نُمرر ملخص المصدر كنص، لأنه لا يوجد محتوى كامل للصفحة
-            result = await reader.read(text=source.summary, url=source.url)
+            reader_text = source.content if source.content else source.summary
+            result = await reader.read(text=reader_text, url=source.url)
             reader_results.append(result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"خطأ في وكيل القارئ: {e}")

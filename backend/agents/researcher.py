@@ -1,7 +1,10 @@
-import httpx
+import logging
+
 from pydantic import BaseModel
 
 from core.model_router import ModelRouter
+
+logger = logging.getLogger(__name__)
 
 
 # --- Pydantic Models ---
@@ -11,6 +14,8 @@ class Source(BaseModel):
     title: str
     url: str
     summary: str
+    content: str | None = None
+    lang: str | None = None
 
 
 class ResearchResult(BaseModel):
@@ -81,26 +86,31 @@ class ResearcherAgent:
         return sources
 
     async def research(self, topic: str) -> ResearchResult:
-        """
-        Main entry point. Accepts a research topic and returns a ResearchResult.
+        try:
+            from agents.web_scraper import WikipediaScraper, WikipediaUnavailable
+            from rag.source_cache import get_cached_sources, set_cached_sources
+        except Exception as e:
+            logger.warning("Wikipedia path unavailable, using templates: %s", e)
+            return ResearchResult(topic=topic, sources=self._build_sources(topic))
 
-        Steps:
-        1. Build the list of sources from templates.
-        2. Use httpx to attempt a GET request to each URL.
-           (If a URL is unreachable, we skip it silently — the source is still returned.)
-        3. Return the ResearchResult.
-        """
-        sources = self._build_sources(topic)
+        scraper = WikipediaScraper()
+        lang = scraper._detect_lang(topic) if scraper._available else "en"
 
-        # Use an async HTTP client to fetch each URL.
-        # timeout=5.0 means we wait at most 5 seconds per request.
-        async with httpx.AsyncClient() as client:
-            for source in sources:
-                try:
-                    await client.get(source.url, timeout=5.0)
-                except Exception:
-                    # URL might be unreachable in dev/offline environments — that's okay.
-                    # We still include it in the results.
-                    pass
+        cached = get_cached_sources(topic, lang)
+        if cached:
+            logger.info("Cache HIT topic=%r lang=%s", topic, lang)
+            return ResearchResult(topic=topic, sources=[Source(**s) for s in cached])
 
+        try:
+            raw = await scraper.search(topic, lang=lang, max_results=3)
+        except WikipediaUnavailable as e:
+            logger.warning("Wikipedia unavailable, falling back to templates: %s", e)
+            return ResearchResult(topic=topic, sources=self._build_sources(topic))
+
+        if not raw:
+            logger.info("No Wikipedia results for %r — using templates", topic)
+            return ResearchResult(topic=topic, sources=self._build_sources(topic))
+
+        sources = [Source(**item) for item in raw]
+        set_cached_sources(topic, lang, [s.model_dump() for s in sources])
         return ResearchResult(topic=topic, sources=sources)
