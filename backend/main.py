@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from rag.rag_api import router as rag_router
 from api.research import router as research_router
 from api.models import router as models_router
+from api.pdf import router as pdf_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +31,7 @@ app.add_middleware(
 app.include_router(rag_router)
 app.include_router(research_router)
 app.include_router(models_router)
+app.include_router(pdf_router)
 
 # شو هو BaseModel؟
 # تخيّل نموذج تعبئة — يحدد شو البيانات المطلوبة ونوعها

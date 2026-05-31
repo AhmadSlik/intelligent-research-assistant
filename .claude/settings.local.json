@@ -26,7 +26,8 @@
       "Bash(python3 *)",
       "Bash(pkill -f \"uvicorn main:app\")",
       "Bash(pkill -f \"uvicorn main:app --port 8004\")",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(npx tsc *)"
     ]
   }
 }
