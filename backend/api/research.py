@@ -1,3 +1,4 @@
+import logging
 import uuid
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -6,7 +7,10 @@ from agents.researcher import ResearcherAgent, Source
 from agents.reader import ReaderAgent, ReaderResult
 from agents.analyst import AnalystAgent
 from agents.writer import WriterAgent
+from agents.fact_checker import FactCheckerAgent, FactCheckResult
 from rag.rag_engine import add_document
+
+logger = logging.getLogger("research_assistant")
 
 # --- إنشاء الراوتر مع بادئة /research ---
 router = APIRouter(prefix="/research", tags=["research"])
@@ -23,6 +27,7 @@ class FullResearchResponse(BaseModel):
     report: str
     sources: list[Source]
     key_points_count: int
+    fact_check: FactCheckResult | None = None
 
 
 # --- نقطة النهاية الرئيسية: تشغيل خط الأنابيب كاملاً ---
@@ -73,7 +78,16 @@ async def full_research(request: FullResearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"خطأ في وكيل الكاتب: {e}")
 
-    # --- الخطوة 5: حفظ التقرير في ChromaDB عبر نظام RAG ---
+    # --- الخطوة 5: وكيل المدقّق — التحقق من صحة التقرير مقابل المصادر ---
+    fact_check_result: FactCheckResult | None = None
+    try:
+        fact_checker = FactCheckerAgent()
+        fact_check_result = await fact_checker.check(report=report, sources=sources)
+    except Exception as e:
+        # فشل FactChecker لا يكسر الـpipeline — التقرير يُرجع بدون fact_check
+        logger.warning(f"FactChecker failed, continuing without fact-check: {e}")
+
+    # --- الخطوة 6: حفظ التقرير في ChromaDB عبر نظام RAG ---
     try:
         doc_id = f"report_{topic.replace(' ', '_')}_{uuid.uuid4().hex[:8]}"
         add_document(
@@ -93,4 +107,5 @@ async def full_research(request: FullResearchRequest):
         report=report,
         sources=sources,
         key_points_count=key_points_count,
+        fact_check=fact_check_result,
     )

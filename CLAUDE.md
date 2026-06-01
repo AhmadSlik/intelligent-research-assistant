@@ -39,6 +39,7 @@ FastAPI backend  ──►  OpenRouter API (LLM)
                2. Reader      — reads and extracts key info from sources
                3. Analyst     — synthesizes and evaluates the information
                4. Writer      — produces the final written report
+               5. FactChecker — verifies report claims against sources
 ```
 
 ---
@@ -53,7 +54,7 @@ Each agent uses a dedicated free model, managed by `backend/core/model_router.py
 | reader | `google/gemma-4-31b-it:free` | Extracts key points from sources |
 | analyst | `deepseek/deepseek-v4-flash:free` | Synthesizes and finds contradictions |
 | writer | `qwen/qwen3-next-80b-a3b-instruct:free` | Writes the final report |
-| fact_checker | `meta-llama/llama-3.3-70b-instruct:free` | Reserved for future use |
+| fact_checker | `meta-llama/llama-3.3-70b-instruct:free` | Verifies report claims against sources, returns confidence score |
 
 **Fallback:** If any model returns 429 (rate limit) or 402 (provider quota), the system automatically falls back to `openrouter/auto` and logs a warning.
 
@@ -105,5 +106,5 @@ pytest tests/test_filename.py
 ## Key Conventions
 
 - Model routing: `backend/core/model_router.py` — each agent gets its own free model with automatic fallback
-- Agent pipeline runs sequentially: Researcher → Reader → Analyst → Writer
+- Agent pipeline runs sequentially: Researcher → Reader → Analyst → Writer → FactChecker
 - ChromaDB stores research context/embeddings for retrieval during a session
