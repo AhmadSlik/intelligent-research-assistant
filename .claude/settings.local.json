@@ -27,7 +27,10 @@
       "Bash(pkill -f \"uvicorn main:app\")",
       "Bash(pkill -f \"uvicorn main:app --port 8004\")",
       "Bash(pip install *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(fuser -k 3000/tcp)"
     ]
   }
 }

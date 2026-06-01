@@ -3,11 +3,18 @@
 import { useState } from "react";
 
 type Source = { title: string; url: string; summary: string };
+type FactCheckResult = {
+  confidence_score: number;
+  verified_claims: string[];
+  questionable_claims: string[];
+  notes: string;
+};
 type ResearchResponse = {
   topic: string;
   report: string;
   sources: Source[];
   key_points_count: number;
+  fact_check: FactCheckResult | null;
 };
 type PdfUploadResponse = {
   doc_id: string;
@@ -28,6 +35,62 @@ type PdfResearchResponse = {
 };
 
 const API_BASE = "https://web-production-e01f8.up.railway.app";
+
+function confidenceColor(score: number): string {
+  if (score >= 80) return "bg-green-500";
+  if (score >= 50) return "bg-amber-500";
+  return "bg-red-500";
+}
+
+function getFavicon(url: string): string | null {
+  try {
+    const hostname = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+  } catch {
+    return null;
+  }
+}
+
+function LoadingSkeleton({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3 text-zinc-500">
+        <svg
+          className="animate-spin h-5 w-5 flex-shrink-0"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
+        </svg>
+        <p className="text-sm">{label}</p>
+      </div>
+      <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm flex flex-col gap-3">
+        <div className="h-4 bg-zinc-200 rounded animate-pulse w-3/4" />
+        <div className="h-4 bg-zinc-200 rounded animate-pulse w-full" />
+        <div className="h-4 bg-zinc-200 rounded animate-pulse w-5/6" />
+        <div className="h-4 bg-zinc-200 rounded animate-pulse w-2/3" />
+        <div className="h-4 bg-zinc-200 rounded animate-pulse w-full" />
+      </div>
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm flex flex-col gap-2">
+        <div className="h-3 bg-zinc-200 rounded animate-pulse w-1/2" />
+        <div className="h-3 bg-zinc-200 rounded animate-pulse w-3/4" />
+      </div>
+    </div>
+  );
+}
 
 export default function Home() {
   const [tab, setTab] = useState<"web" | "pdf">("web");
@@ -177,32 +240,53 @@ export default function Home() {
   }
 
   return (
-    <main dir="rtl" lang="ar" className="flex flex-1 w-full max-w-3xl mx-auto flex-col gap-8 px-6 py-12">
-      <div>
-        <h1 className="text-3xl font-semibold text-zinc-900">مساعد البحث الذكي</h1>
-        <p className="mt-2 text-zinc-500 text-sm">أدخل موضوعاً وسيقوم النظام بالبحث وكتابة تقرير شامل</p>
+    <main className="flex flex-1 w-full max-w-3xl mx-auto flex-col gap-6 md:gap-8 px-4 py-6 md:px-6 md:py-12">
+
+      {/* Hero header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl md:text-4xl font-bold text-zinc-900">
+          المساعد البحثي الذكي
+        </h1>
+        <p className="text-zinc-500 text-sm md:text-base leading-relaxed">
+          ابحث في موضوع، نقرأ المصادر، نحلل، نكتب التقرير، ونتحقق من صحته
+        </p>
+        <span className="self-start mt-1 bg-blue-50 text-blue-700 rounded-full px-3 py-1 text-xs font-medium">
+          5 وكلاء ذكاء اصطناعي يعملون بالتوازي
+        </span>
       </div>
 
       {/* Tabs */}
-      <nav className="flex gap-2">
+      <nav className="grid grid-cols-2 md:flex gap-2">
         <button
           onClick={() => setTab("web")}
-          className={`rounded-lg px-5 py-2 text-sm font-medium transition-colors ${
+          className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
             tab === "web"
-              ? "bg-blue-600 text-white"
+              ? "bg-blue-600 text-white shadow-sm"
               : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
           }`}
         >
+          {/* Globe icon */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
           بحث في الويب
         </button>
         <button
           onClick={() => setTab("pdf")}
-          className={`rounded-lg px-5 py-2 text-sm font-medium transition-colors ${
+          className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
             tab === "pdf"
-              ? "bg-blue-600 text-white"
+              ? "bg-blue-600 text-white shadow-sm"
               : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
           }`}
         >
+          {/* Document icon */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="9" y1="13" x2="15" y2="13" />
+            <line x1="9" y1="17" x2="13" y2="17" />
+          </svg>
           بحث في PDF
         </button>
       </nav>
@@ -221,20 +305,18 @@ export default function Home() {
               onChange={(e) => setTopic(e.target.value)}
               disabled={loading}
               placeholder="مثال: الذكاء الاصطناعي في التعليم"
-              className="w-full rounded-lg border border-zinc-300 px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
+              className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
               disabled={loading || !topic.trim()}
-              className="self-start rounded-lg bg-blue-600 px-6 py-2 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
+              className="w-full md:w-auto md:self-start rounded-lg bg-blue-600 px-6 py-2.5 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? "جارٍ البحث..." : "ابحث"}
             </button>
           </form>
 
-          {loading && (
-            <p className="text-sm text-zinc-500">جارٍ البحث... قد يستغرق دقيقة أو أكثر</p>
-          )}
+          {loading && <LoadingSkeleton label="جارٍ البحث... قد يستغرق دقيقة أو أكثر" />}
 
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 text-sm">
@@ -244,33 +326,133 @@ export default function Home() {
 
           {result && (
             <>
+              {/* Report */}
               <section className="flex flex-col gap-3">
-                <h2 className="text-xl font-semibold text-zinc-900">التقرير</h2>
-                <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm whitespace-pre-wrap leading-7 text-zinc-800 text-sm">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-semibold text-zinc-900">التقرير</h2>
+                  {result.key_points_count > 0 && (
+                    <span dir="ltr" className="bg-zinc-100 text-zinc-600 rounded-full px-2.5 py-0.5 text-xs font-medium">
+                      {result.key_points_count} نقطة
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-xl border border-zinc-200 bg-white p-4 md:p-6 shadow-sm whitespace-pre-wrap leading-7 text-zinc-800 text-sm">
                   {result.report}
                 </div>
               </section>
 
+              {/* Sources */}
               <section className="flex flex-col gap-3">
                 <h2 className="text-xl font-semibold text-zinc-900">المصادر</h2>
                 {result.sources.length === 0 ? (
                   <p className="text-zinc-500 text-sm">لا توجد مصادر متاحة.</p>
                 ) : (
                   <ul className="flex flex-col gap-3">
-                    {result.sources.map((source, i) => (
-                      <li key={i} className="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50 transition-colors">
-                        <a
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-blue-700 hover:underline"
-                        >
-                          {source.title}
-                        </a>
-                        <p className="mt-1 text-sm text-zinc-600">{source.summary}</p>
-                      </li>
-                    ))}
+                    {result.sources.map((source, i) => {
+                      const favicon = getFavicon(source.url);
+                      return (
+                        <li key={i} className="rounded-lg border border-zinc-200 bg-white p-4 hover:bg-zinc-50 transition-colors">
+                          <div className="flex items-start gap-3">
+                            <span className="flex-shrink-0 w-7 h-7 rounded-full bg-zinc-900 text-white text-xs font-semibold flex items-center justify-center">
+                              {i + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                {favicon && (
+                                  <img
+                                    src={favicon}
+                                    alt=""
+                                    width={16}
+                                    height={16}
+                                    className="flex-shrink-0 rounded-sm"
+                                  />
+                                )}
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  dir="ltr"
+                                  className="font-medium text-blue-700 hover:underline truncate text-sm"
+                                >
+                                  {source.title}
+                                </a>
+                              </div>
+                              <p className="text-sm text-zinc-600 leading-6">{source.summary}</p>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
+                )}
+              </section>
+
+              {/* FactCheck card */}
+              <section className="flex flex-col gap-3">
+                <h2 className="text-xl font-semibold text-zinc-900">التحقق من الصحة</h2>
+                {result.fact_check === null ? (
+                  <p className="text-sm text-zinc-500">لم تتوفر نتيجة التحقق هذه المرة.</p>
+                ) : (
+                  <div className="rounded-xl border border-zinc-200 bg-white p-4 md:p-6 shadow-sm flex flex-col gap-4">
+                    {/* Confidence bar */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-zinc-700">درجة الثقة</span>
+                        <span dir="ltr" className="text-sm font-semibold text-zinc-900">
+                          {result.fact_check.confidence_score}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${confidenceColor(result.fact_check.confidence_score)}`}
+                          style={{ width: `${result.fact_check.confidence_score}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Verified claims */}
+                    {result.fact_check.verified_claims.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-zinc-700 mb-2">ادعاءات مؤكدة</p>
+                        <ul className="flex flex-col gap-1.5">
+                          {result.fact_check.verified_claims.map((claim, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-zinc-700">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                              <span>{claim}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Questionable claims */}
+                    {result.fact_check.questionable_claims.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-zinc-700 mb-2">ادعاءات تحتاج تحقق</p>
+                        <ul className="flex flex-col gap-1.5">
+                          {result.fact_check.questionable_claims.map((claim, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-zinc-700">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                              </svg>
+                              <span>{claim}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    {result.fact_check.notes && (
+                      <p className="text-sm text-zinc-600 leading-6 border-t border-zinc-100 pt-3">
+                        {result.fact_check.notes}
+                      </p>
+                    )}
+                  </div>
                 )}
               </section>
             </>
@@ -298,27 +480,27 @@ export default function Home() {
                 setPdfError(null);
               }}
               disabled={pdfUploading}
-              className="w-full rounded-lg border border-zinc-300 px-4 py-2 text-zinc-700 disabled:cursor-not-allowed"
+              className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-zinc-700 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
               disabled={!pdfFile || pdfUploading}
-              className="self-start rounded-lg bg-blue-600 px-6 py-2 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
+              className="w-full md:w-auto md:self-start rounded-lg bg-blue-600 px-6 py-2.5 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
             >
               {pdfUploading ? "جارٍ الرفع..." : "رفع الملف"}
             </button>
           </form>
 
-          {pdfUploading && (
-            <p className="text-sm text-zinc-500">جارٍ معالجة الـPDF...</p>
-          )}
+          {pdfUploading && <LoadingSkeleton label="جارٍ معالجة الـPDF..." />}
 
           {/* Upload success info */}
           {pdfUploadMeta && (
             <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 flex flex-col gap-1 text-sm">
               <p className="font-medium text-zinc-800">{pdfUploadMeta.filename}</p>
               <p className="text-zinc-500">
-                {pdfUploadMeta.pages} صفحة · {pdfUploadMeta.chunks_count} جزء · {pdfUploadMeta.metadata.file_size_kb} كيلوبايت
+                <span dir="ltr">{pdfUploadMeta.pages}</span> صفحة ·{" "}
+                <span dir="ltr">{pdfUploadMeta.chunks_count}</span> جزء ·{" "}
+                <span dir="ltr">{pdfUploadMeta.metadata.file_size_kb}</span> كيلوبايت
               </p>
               {pdfPreview && (
                 <p className="mt-2 text-zinc-600 leading-6 line-clamp-3 whitespace-pre-wrap">{pdfPreview}</p>
@@ -339,21 +521,19 @@ export default function Home() {
                 onChange={(e) => setPdfQuestion(e.target.value)}
                 disabled={pdfLoading}
                 placeholder="مثال: ما الفكرة الرئيسية في هذا الملف؟"
-                className="w-full rounded-lg border border-zinc-300 px-4 py-2 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
+                className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
               />
               <button
                 type="submit"
                 disabled={pdfLoading || !pdfQuestion.trim()}
-                className="self-start rounded-lg bg-blue-600 px-6 py-2 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
+                className="w-full md:w-auto md:self-start rounded-lg bg-blue-600 px-6 py-2.5 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
               >
                 {pdfLoading ? "جارٍ التحليل..." : "ابحث في الملف"}
               </button>
             </form>
           )}
 
-          {pdfLoading && (
-            <p className="text-sm text-zinc-500">جارٍ تحليل الملف... قد يستغرق دقيقة أو أكثر</p>
-          )}
+          {pdfLoading && <LoadingSkeleton label="جارٍ تحليل الملف... قد يستغرق دقيقة أو أكثر" />}
 
           {pdfError && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 text-sm">
@@ -364,15 +544,20 @@ export default function Home() {
           {pdfResult && (
             <section className="flex flex-col gap-3">
               <h2 className="text-xl font-semibold text-zinc-900">التقرير</h2>
-              <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm whitespace-pre-wrap leading-7 text-zinc-800 text-sm">
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 md:p-6 shadow-sm whitespace-pre-wrap leading-7 text-zinc-800 text-sm">
                 {pdfResult.report}
               </div>
               {pdfResult.key_points.length > 0 && (
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
                   <p className="text-sm font-medium text-zinc-700 mb-2">النقاط الرئيسية</p>
-                  <ul className="flex flex-col gap-1">
+                  <ul className="flex flex-col gap-1.5">
                     {pdfResult.key_points.map((point, i) => (
-                      <li key={i} className="text-sm text-zinc-600">• {point}</li>
+                      <li key={i} className="flex items-start gap-2 text-sm text-zinc-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="4" />
+                        </svg>
+                        <span>{point}</span>
+                      </li>
                     ))}
                   </ul>
                 </div>
