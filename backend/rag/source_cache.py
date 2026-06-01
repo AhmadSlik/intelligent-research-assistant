@@ -15,7 +15,9 @@ _PLACEHOLDER_EMBEDDING = model.encode("source_cache_entry").tolist()
 
 
 def _make_key(topic: str, lang: str) -> str:
-    raw = f"{topic.strip().lower()}|{lang}"
+    from utils.arabic import normalize_for_search
+    normalized = normalize_for_search(topic)
+    raw = f"{normalized}|{lang}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 

@@ -45,9 +45,12 @@ class WikipediaScraper:
         if lang not in ("ar", "en"):
             lang = "en"
 
+        from utils.arabic import normalize_for_search, clean_arabic_text
+        search_query = normalize_for_search(topic) if lang == "ar" else topic
+
         params = {
             "action": "opensearch",
-            "search": topic,
+            "search": search_query,
             "limit": max_results,
             "namespace": 0,
             "format": "json",
@@ -81,8 +84,8 @@ class WikipediaScraper:
                 page = wiki.page(title)
                 if not page.exists():
                     continue
-                summary = (page.summary or "").strip()
-                content = (page.text or "").strip()
+                summary = clean_arabic_text((page.summary or "").strip())
+                content = clean_arabic_text((page.text or "").strip())
                 if len(content) > MAX_CONTENT_CHARS:
                     content = content[:MAX_CONTENT_CHARS] + "..."
                 results.append({

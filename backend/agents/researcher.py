@@ -56,6 +56,24 @@ _SOURCE_TEMPLATES = [
     },
 ]
 
+_AR_SOURCE_TEMPLATES = [
+    {
+        "title": "مقدمة عن {topic} - ويكيبيديا",
+        "url": "https://ar.wikipedia.org/wiki/{topic_slug}",
+        "summary": "نظرة شاملة عن {topic} تتضمن تاريخه وتعريفه ومفاهيمه الأساسية.",
+    },
+    {
+        "title": "نتائج بحث {topic} - ويكيبيديا",
+        "url": "https://ar.wikipedia.org/w/index.php?search={topic_slug}",
+        "summary": "نتائج البحث في ويكيبيديا العربية حول موضوع {topic}.",
+    },
+    {
+        "title": "أبحاث {topic} - arXiv",
+        "url": "https://arxiv.org/search/?query={topic_slug}&searchtype=all",
+        "summary": "أحدث الأبحاث والأوراق العلمية المتعلقة بموضوع {topic}.",
+    },
+]
+
 
 # --- Researcher Agent ---
 
@@ -70,12 +88,13 @@ class ResearcherAgent:
 
     model = ModelRouter.get_model("researcher")
 
-    def _build_sources(self, topic: str) -> list[Source]:
+    def _build_sources(self, topic: str, lang: str = "en") -> list[Source]:
         """Fill in the topic placeholders and return a list of Source objects."""
         topic_slug = topic.strip().replace(" ", "_")
+        templates = _AR_SOURCE_TEMPLATES if lang == "ar" else _SOURCE_TEMPLATES
 
         sources = []
-        for template in _SOURCE_TEMPLATES:
+        for template in templates:
             source = Source(
                 title=template["title"].format(topic=topic, topic_slug=topic_slug),
                 url=template["url"].format(topic=topic, topic_slug=topic_slug),
@@ -91,7 +110,8 @@ class ResearcherAgent:
             from rag.source_cache import get_cached_sources, set_cached_sources
         except Exception as e:
             logger.warning("Wikipedia path unavailable, using templates: %s", e)
-            return ResearchResult(topic=topic, sources=self._build_sources(topic))
+            lang = self._detect_lang_standalone(topic)
+            return ResearchResult(topic=topic, sources=self._build_sources(topic, lang))
 
         scraper = WikipediaScraper()
         lang = scraper._detect_lang(topic) if scraper._available else "en"
@@ -105,12 +125,22 @@ class ResearcherAgent:
             raw = await scraper.search(topic, lang=lang, max_results=3)
         except WikipediaUnavailable as e:
             logger.warning("Wikipedia unavailable, falling back to templates: %s", e)
-            return ResearchResult(topic=topic, sources=self._build_sources(topic))
+            return ResearchResult(topic=topic, sources=self._build_sources(topic, lang))
 
         if not raw:
             logger.info("No Wikipedia results for %r — using templates", topic)
-            return ResearchResult(topic=topic, sources=self._build_sources(topic))
+            return ResearchResult(topic=topic, sources=self._build_sources(topic, lang))
 
         sources = [Source(**item) for item in raw]
         set_cached_sources(topic, lang, [s.model_dump() for s in sources])
         return ResearchResult(topic=topic, sources=sources)
+
+    def _detect_lang_standalone(self, topic: str) -> str:
+        """Detect language without relying on WikipediaScraper being available."""
+        if len(topic.strip()) < 3:
+            return "en"
+        try:
+            from langdetect import detect
+            return "ar" if detect(topic) == "ar" else "en"
+        except Exception:
+            return "en"
