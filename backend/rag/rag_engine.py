@@ -1,9 +1,16 @@
+from functools import lru_cache
+
 from sentence_transformers import SentenceTransformer
 import chromadb
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 client = chromadb.Client()
 collection = client.get_or_create_collection("research_docs")
+
+
+@lru_cache(maxsize=512)
+def _encode_cached(text: str) -> tuple:
+    return tuple(model.encode(text).tolist())
 
 
 def add_document(doc_id, text, metadata={}):
@@ -13,7 +20,7 @@ def add_document(doc_id, text, metadata={}):
 
 
 def search_documents(query, n_results=3):
-    qe = model.encode(query).tolist()
+    qe = list(_encode_cached(query))
     return collection.query(query_embeddings=[qe], n_results=n_results)
 
 
@@ -62,7 +69,7 @@ def add_document_chunked(doc_id, text, metadata=None):
 # بحث في المستندات المقسّمة وإرجاع النتائج مع معلومات الـ chunk
 # كل نتيجة تحتوي على النص والـ metadata والمسافة عن الاستعلام
 def search_chunked_documents(query, n_results=3):
-    qe = model.encode(query).tolist()
+    qe = list(_encode_cached(query))
     raw = collection.query(query_embeddings=[qe], n_results=n_results)
     return [
         {"text": doc, "metadata": meta, "distance": dist}

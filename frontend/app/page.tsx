@@ -100,6 +100,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ResearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
+  const [streamedReport, setStreamedReport] = useState("");
 
   // --- PDF state ---
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -152,6 +154,89 @@ export default function Home() {
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
+    }
+  }
+
+  async function handleStreamSubmit() {
+    if (!topic.trim() || loading || streaming) return;
+
+    setError(null);
+    setResult(null);
+    setStreamedReport("");
+    setStreaming(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/research/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: topic.trim() }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error("STREAM_INIT_FAILED");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulated = "";
+      let finalSources: Source[] = [];
+      let finalFactCheck: FactCheckResult | null = null;
+      let finalKeyPoints = 0;
+      let sawDone = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+
+        for (const evt of parts) {
+          const line = evt.trim();
+          if (!line.startsWith("data:")) continue;
+          const jsonStr = line.replace(/^data:\s*/, "");
+          if (!jsonStr) continue;
+
+          try {
+            const data = JSON.parse(jsonStr);
+            if (data.type === "token") {
+              accumulated += data.content;
+              setStreamedReport(accumulated);
+            } else if (data.type === "done") {
+              finalSources = data.sources || [];
+              finalFactCheck = data.fact_check || null;
+              finalKeyPoints = data.key_points_count || 0;
+              sawDone = true;
+            } else if (data.type === "error") {
+              throw new Error(data.message || "STREAM_ERROR");
+            }
+          } catch (parseErr) {
+            console.warn("SSE parse error", parseErr);
+          }
+        }
+      }
+
+      if (!sawDone) throw new Error("STREAM_INCOMPLETE");
+
+      setResult({
+        topic: topic.trim(),
+        report: accumulated,
+        sources: finalSources,
+        key_points_count: finalKeyPoints,
+        fact_check: finalFactCheck,
+      });
+      setStreamedReport("");
+    } catch (err) {
+      console.warn("Streaming failed, falling back to /research/full:", err);
+      setStreaming(false);
+      setStreamedReport("");
+      await handleSubmit({ preventDefault: () => {} } as React.FormEvent);
+      return;
+    } finally {
+      setStreaming(false);
     }
   }
 
@@ -303,20 +388,31 @@ export default function Home() {
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              disabled={loading}
+              disabled={loading || streaming}
               placeholder="مثال: الذكاء الاصطناعي في التعليم"
               className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
             />
-            <button
-              type="submit"
-              disabled={loading || !topic.trim()}
-              className="w-full md:w-auto md:self-start rounded-lg bg-blue-600 px-6 py-2.5 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? "جارٍ البحث..." : "ابحث"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={loading || streaming || !topic.trim()}
+                className="rounded-lg bg-blue-600 px-6 py-2.5 text-white font-medium hover:bg-blue-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading ? "جارٍ البحث..." : "ابحث"}
+              </button>
+              <button
+                type="button"
+                onClick={handleStreamSubmit}
+                disabled={loading || streaming || !topic.trim()}
+                className="rounded-lg bg-violet-600 px-6 py-2.5 text-white font-medium hover:bg-violet-700 disabled:bg-zinc-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {streaming ? "يكتب..." : "بحث مع Streaming"}
+              </button>
+            </div>
           </form>
 
           {loading && <LoadingSkeleton label="جارٍ البحث... قد يستغرق دقيقة أو أكثر" />}
+          {streaming && !streamedReport && <LoadingSkeleton label="يُحضّر المصادر ويحلّل... سيبدأ الكتابة قريباً" />}
 
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 text-sm">
@@ -324,24 +420,28 @@ export default function Home() {
             </div>
           )}
 
-          {result && (
+          {(streaming || streamedReport || result) && (
             <>
               {/* Report */}
               <section className="flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                   <h2 className="text-xl font-semibold text-zinc-900">التقرير</h2>
-                  {result.key_points_count > 0 && (
+                  {result && result.key_points_count > 0 && (
                     <span dir="ltr" className="bg-zinc-100 text-zinc-600 rounded-full px-2.5 py-0.5 text-xs font-medium">
                       {result.key_points_count} نقطة
                     </span>
                   )}
+                  {streaming && (
+                    <span className="text-xs text-violet-600 animate-pulse">يكتب...</span>
+                  )}
                 </div>
                 <div className="rounded-xl border border-zinc-200 bg-white p-4 md:p-6 shadow-sm whitespace-pre-wrap leading-7 text-zinc-800 text-sm">
-                  {result.report}
+                  {streaming ? streamedReport : result?.report}
                 </div>
               </section>
 
               {/* Sources */}
+              {result && (
               <section className="flex flex-col gap-3">
                 <h2 className="text-xl font-semibold text-zinc-900">المصادر</h2>
                 {result.sources.length === 0 ? (
@@ -386,8 +486,10 @@ export default function Home() {
                   </ul>
                 )}
               </section>
+              )}
 
               {/* FactCheck card */}
+              {result && (
               <section className="flex flex-col gap-3">
                 <h2 className="text-xl font-semibold text-zinc-900">التحقق من الصحة</h2>
                 {result.fact_check === null ? (
@@ -455,6 +557,7 @@ export default function Home() {
                   </div>
                 )}
               </section>
+              )}
             </>
           )}
         </>

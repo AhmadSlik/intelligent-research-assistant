@@ -9,7 +9,7 @@ from agents.pdf_processor import PDFExtractionError, PDFProcessor
 from agents.reader import ReaderAgent
 from agents.researcher import Source
 from agents.writer import WriterAgent
-from rag.rag_engine import add_document_chunked, collection, model
+from rag.rag_engine import _encode_cached, add_document_chunked, collection
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ async def research_pdf(req: PdfResearchRequest):
         )
 
     try:
-        q_emb = model.encode(req.question).tolist()
+        q_emb = list(_encode_cached(req.question))
         raw = collection.query(
             query_embeddings=[q_emb],
             n_results=min(5, n_chunks),
