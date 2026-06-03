@@ -1,3 +1,5 @@
+from typing import AsyncGenerator
+
 from pydantic import BaseModel
 
 from agents.analyst import AnalystResult
@@ -74,6 +76,19 @@ class WriterAgent:
             "4. TONE: Formal academic English. Third person only. No first or second person (I, we, you). No rhetorical questions.\n\n"
             "5. TOTAL LENGTH: 400-600 words (Abstract through Conclusion, not counting the References list).\n"
         )
+
+    async def stream_write(
+        self,
+        topic: str,
+        analyst_result: AnalystResult,
+        sources: list[Source],
+    ) -> AsyncGenerator[str, None]:
+        prompt = self._build_prompt(topic, analyst_result, sources)
+        async for token in ModelRouter.stream_chat(
+            agent_type="writer",
+            messages=[{"role": "user", "content": prompt}],
+        ):
+            yield token
 
     async def write(
         self,

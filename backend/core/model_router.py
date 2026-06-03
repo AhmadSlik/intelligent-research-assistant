@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import AsyncGenerator
 
 from dotenv import load_dotenv
 from openai import APIStatusError, AsyncOpenAI, RateLimitError
@@ -41,6 +42,36 @@ class ModelRouter:
             "fallbacks": FALLBACK_MODELS,
             "chain": {a: ModelRouter.get_with_fallback(a) for a in MODELS},
         }
+
+    @staticmethod
+    async def stream_chat(
+        agent_type: str,
+        messages: list[dict],
+    ) -> AsyncGenerator[str, None]:
+        primary, fallback = ModelRouter.get_with_fallback(agent_type)
+        logger.info("Agent %s streaming with model %s", agent_type, primary)
+        try:
+            stream = await _client.chat.completions.create(
+                model=primary, messages=messages, stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        yield delta
+        except (RateLimitError, APIStatusError) as e:
+            logger.warning(
+                "Rate limited on %s (error: %s), falling back to %s",
+                primary, type(e).__name__, fallback,
+            )
+            stream = await _client.chat.completions.create(
+                model=fallback, messages=messages, stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        yield delta
 
     @staticmethod
     async def chat(agent_type: str, messages: list[dict]) -> str:

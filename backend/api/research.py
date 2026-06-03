@@ -1,6 +1,9 @@
+import json
 import logging
 import uuid
+from typing import AsyncGenerator
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agents.researcher import ResearcherAgent, Source
@@ -28,6 +31,102 @@ class FullResearchResponse(BaseModel):
     sources: list[Source]
     key_points_count: int
     fact_check: FactCheckResult | None = None
+
+
+# --- نماذج البيانات لـ streaming ---
+
+class StreamResearchRequest(BaseModel):
+    topic: str
+
+
+# --- نقطة النهاية: streaming عبر SSE ---
+
+@router.post("/stream")
+async def stream_research(request: StreamResearchRequest):
+    topic = request.topic.strip()
+
+    if not topic:
+        raise HTTPException(status_code=400, detail="الموضوع لا يمكن أن يكون فارغاً.")
+
+    async def event_generator() -> AsyncGenerator[bytes, None]:
+        try:
+            # 1) Researcher
+            researcher = ResearcherAgent()
+            research_result = await researcher.research(topic)
+            sources = research_result.sources
+
+            # 2) Reader
+            reader = ReaderAgent()
+            reader_results: list[ReaderResult] = []
+            for source in sources:
+                reader_text = source.content if source.content else source.summary
+                reader_results.append(
+                    await reader.read(text=reader_text, url=source.url)
+                )
+
+            # 3) Analyst
+            analyst = AnalystAgent()
+            analyst_result = await analyst.analyse(reader_results)
+
+            # 4) Writer — stream tokens
+            writer = WriterAgent()
+            full_report = ""
+            async for token in writer.stream_write(
+                topic=topic,
+                analyst_result=analyst_result,
+                sources=sources,
+            ):
+                full_report += token
+                payload = json.dumps(
+                    {"type": "token", "content": token},
+                    ensure_ascii=False,
+                )
+                yield f"data: {payload}\n\n".encode("utf-8")
+
+            # 5) FactChecker (non-fatal)
+            fact_check_result: FactCheckResult | None = None
+            try:
+                fact_checker = FactCheckerAgent()
+                fact_check_result = await fact_checker.check(
+                    report=full_report, sources=sources,
+                )
+            except Exception as e:
+                logger.warning(f"FactChecker failed in stream: {e}")
+
+            # 6) RAG persist (non-fatal)
+            try:
+                doc_id = f"report_{topic.replace(' ', '_')}_{uuid.uuid4().hex[:8]}"
+                add_document(
+                    doc_id=doc_id,
+                    text=full_report,
+                    metadata={"topic": topic, "sources_count": len(sources)},
+                )
+            except Exception:
+                pass
+
+            # 7) Done event
+            done_payload = {
+                "type": "done",
+                "sources": [s.model_dump() for s in sources],
+                "fact_check": fact_check_result.model_dump() if fact_check_result else None,
+                "key_points_count": sum(len(r.key_points) for r in reader_results),
+            }
+            yield f"data: {json.dumps(done_payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+        except Exception as e:
+            logger.exception("Stream pipeline failed")
+            err_payload = {"type": "error", "message": str(e)}
+            yield f"data: {json.dumps(err_payload, ensure_ascii=False)}\n\n".encode("utf-8")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # --- نقطة النهاية الرئيسية: تشغيل خط الأنابيب كاملاً ---
