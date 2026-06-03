@@ -70,6 +70,68 @@ Each agent uses a dedicated free model, managed by `backend/core/model_router.py
 
 ---
 
+## Wikipedia Source Fetching (Day 22)
+
+`backend/agents/web_scraper.py` queries the Wikipedia API for both Arabic and English articles. It cleans the raw wikitext and returns plain-text excerpts.
+
+`backend/rag/source_cache.py` — in-memory source cache keyed by `(lang, title)`. Prevents duplicate Wikipedia requests within a session.
+
+---
+
+## PDF Processing (Day 23)
+
+`backend/agents/pdf_processor.py` — extracts text and metadata (page count, title, author) from a PDF binary using `pypdf`. Raises `PDFExtractionError` on corrupt files.
+
+`backend/api/pdf.py` endpoints:
+- `POST /pdf/upload` — accepts `multipart/form-data`, validates file type + size (≤ 10 MB), stores chunks in ChromaDB, returns `doc_id` + `pages` + `preview`.
+- `POST /pdf/research` — accepts `{ "doc_id": "...", "question": "..." }`, retrieves top-5 relevant chunks, runs Reader → Analyst → Writer pipeline.
+
+---
+
+## FactChecker Agent (Day 24)
+
+`backend/agents/fact_checker.py` — 5th and final agent in the pipeline.
+
+Takes the finished report + source list, prompts the LLM to verify each claim, and returns:
+```json
+{ "confidence": 0.92, "flagged_claims": ["Claim X contradicts source 2"] }
+```
+Confidence is a float 0–1 (1 = fully verified). The FactCheck card in the frontend displays this result.
+
+---
+
+## Arabic Source Handling (Day 26)
+
+`backend/utils/arabic.py` normalizes Arabic text before it reaches the LLM:
+- Alef variants (أ / إ / آ) → ا
+- Removes tashkeel (diacritics)
+- Strips Wikipedia boilerplate (edit links, citation-needed markers)
+
+AR fallback: if an English Wikipedia article is not found, the Researcher retries with the Arabic Wikipedia API.
+
+---
+
+## Streaming via SSE (Day 28)
+
+`POST /research/stream` returns a `StreamingResponse` with `text/event-stream` content type. Each event has the format:
+```
+data: {"type": "token", "content": "..."}
+```
+
+`ModelRouter.stream_chat(agent_type, messages)` — async generator that yields tokens from the Writer. The same primary/fallback logic applies: if the primary model raises `RateLimitError` or `APIStatusError`, the fallback generator takes over transparently.
+
+---
+
+## Performance Optimizations (Day 29)
+
+**Parallel Reader** — `backend/agents/reader.py` uses `asyncio.gather()` to read all sources concurrently instead of sequentially. Reduces total reader time from `N × latency` to `max(latency)`.
+
+**LRU embedding cache** — `backend/rag/rag_engine.py::_encode_cached` wraps `sentence-transformers` encode with `functools.lru_cache`. Re-encoding the same string is free after the first call.
+
+**Result cache** — `backend/core/result_cache.py`: thread-safe dict with a 10-minute TTL and a 64-entry cap (LRU eviction). Keyed by normalized topic string (lowercase, stripped). If the same topic arrives within the window, the cached response is returned without re-running any agents.
+
+---
+
 ## Commands
 
 > Update this section once commands are established.
@@ -106,5 +168,14 @@ pytest tests/test_filename.py
 ## Key Conventions
 
 - Model routing: `backend/core/model_router.py` — each agent gets its own free model with automatic fallback
-- Agent pipeline runs sequentially: Researcher → Reader → Analyst → Writer → FactChecker
+- Agent pipeline: Researcher → Reader (parallel) → Analyst → Writer → FactChecker
 - ChromaDB stores research context/embeddings for retrieval during a session
+- Result cache invalidates after 10 minutes (`backend/core/result_cache.py`)
+- All endpoints:
+  - `POST /research/full` — blocking 5-agent pipeline
+  - `POST /research/stream` — same pipeline with SSE token streaming
+  - `POST /pdf/upload` — PDF ingestion into ChromaDB
+  - `POST /pdf/research` — pipeline on uploaded PDF
+  - `GET /api/models/info` — per-agent models + fallback chains
+  - `POST /rag/add`, `POST /rag/search`, `GET /rag/count` — RAG operations
+  - `GET /`, `GET /health` — status + Railway healthcheck
